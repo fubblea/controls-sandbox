@@ -108,14 +108,21 @@ fn move_platform(
     let mut velocity = platform_vel.get_single_mut().unwrap();
 
     if keyboard_input.pressed(KeyCode::ArrowLeft) {
-        velocity.linvel.x -= 10.0;
+        velocity.linvel.x -= 20.0;
     } else if keyboard_input.pressed(KeyCode::ArrowRight) {
-        velocity.linvel.x += 10.0;
+        velocity.linvel.x += 20.0;
     } else {
         velocity.linvel.x = 0.0;
     }
 
     if velocity.linvel.x.abs() > 0.0 {
         println!("Platform vel: {:?}", velocity);
+    }
+
+    const MAX_VEL: f32 = 1000.0;
+
+    // Fixed max platform velocity
+    if velocity.linvel.x.abs() > MAX_VEL {
+        velocity.linvel.x = MAX_VEL * velocity.linvel.x.signum();
     }
 }

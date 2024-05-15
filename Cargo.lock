@@ -1381,14 +1381,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "control-sandbox"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_rapier2d",
-]
-
-[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2133,6 +2125,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e05c02b5e89bff3b946cedeca278abc628fe811e604f027c45a8aa3cf793d0eb"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "inverted_pendulum"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy_rapier2d",
 ]
 
 [[package]]
