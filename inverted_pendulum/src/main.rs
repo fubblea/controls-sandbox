@@ -10,6 +10,11 @@ struct Platform;
 #[derive(Component)]
 struct Pendulum;
 
+// Simulation parameters
+const MAX_PLATFORM_VEL: f32 = 1000.0; // Maximum absolute platform velocity
+const BALL_DENSITY: f32 = 1.0; // Pendulum ball density
+const AIR_RESISTANCE: f32 = 5.0; // Pendulum ball air resistance
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
@@ -79,12 +84,12 @@ fn setup_physics(
             children
                 .spawn(Collider::ball(20.0))
                 .insert(TransformBundle::from(Transform::from_xyz(-50.0, 0.0, 0.0)))
-                .insert(ColliderMassProperties::Density(1.0));
+                .insert(ColliderMassProperties::Density(BALL_DENSITY));
         })
         // Air resistance
         .insert(Damping {
             linear_damping: 0.0,
-            angular_damping: 5.0,
+            angular_damping: AIR_RESISTANCE,
         })
         .insert(TransformBundle::from(Transform::from_xyz(
             -10.0, -12.5, 0.0,
@@ -119,10 +124,8 @@ fn move_platform(
         println!("Platform vel: {:?}", velocity);
     }
 
-    const MAX_VEL: f32 = 1000.0;
-
     // Fixed max platform velocity
-    if velocity.linvel.x.abs() > MAX_VEL {
-        velocity.linvel.x = MAX_VEL * velocity.linvel.x.signum();
+    if velocity.linvel.x.abs() > MAX_PLATFORM_VEL {
+        velocity.linvel.x = MAX_PLATFORM_VEL * velocity.linvel.x.signum();
     }
 }
