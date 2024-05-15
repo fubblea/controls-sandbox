@@ -4,6 +4,8 @@ use bevy::{
 };
 use bevy_rapier2d::prelude::*;
 
+mod controller;
+
 #[derive(Component)]
 struct Platform;
 
@@ -13,7 +15,7 @@ struct Pendulum;
 // Simulation parameters
 const MAX_PLATFORM_VEL: f32 = 1000.0; // Maximum absolute platform velocity
 const BALL_DENSITY: f32 = 1.0; // Pendulum ball density
-const AIR_RESISTANCE: f32 = 5.0; // Pendulum ball air resistance
+const AIR_RESISTANCE: f32 = 20.0; // Pendulum ball air resistance
 
 fn main() {
     App::new()
@@ -22,7 +24,7 @@ fn main() {
         // .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, setup_graphics)
         .add_systems(Startup, setup_physics)
-        .add_systems(Update, move_platform)
+        .add_systems(Update, step)
         .run();
 }
 
@@ -97,32 +99,27 @@ fn setup_physics(
         .insert(ImpulseJoint::new(platform, joint));
 }
 
-fn move_platform(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
+fn step(
     mut platform_vel: Query<&mut Velocity, With<Platform>>,
+    mut body_sleep: Query<&mut Sleeping, With<RigidBody>>,
     pendulum_pos: Query<&Transform, With<Pendulum>>,
 ) {
+    // Ensure nothing sleeps
+    body_sleep.iter_mut().for_each(|mut body| {
+        body.sleeping = false;
+    });
+
     // Get pendulum state
     let position = pendulum_pos.get_single().unwrap();
 
     // Add offset to angle to make pendulum down 0 deg
-    let theta = f32::to_degrees(position.rotation.z) - 45.0;
+    // TODO Figure out why there is an error in the angle
+    let theta = f32::to_degrees(position.rotation.z) - 45.0 + 4.538864;
     println!("Pendulum angle: {}", theta);
 
     // Control
     let mut velocity = platform_vel.get_single_mut().unwrap();
-
-    if keyboard_input.pressed(KeyCode::ArrowLeft) {
-        velocity.linvel.x -= 20.0;
-    } else if keyboard_input.pressed(KeyCode::ArrowRight) {
-        velocity.linvel.x += 20.0;
-    } else {
-        velocity.linvel.x = 0.0;
-    }
-
-    if velocity.linvel.x.abs() > 0.0 {
-        println!("Platform vel: {:?}", velocity);
-    }
+    velocity.linvel.x = controller::get_vel(theta);
 
     // Fixed max platform velocity
     if velocity.linvel.x.abs() > MAX_PLATFORM_VEL {
