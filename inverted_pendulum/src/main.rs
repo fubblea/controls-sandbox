@@ -7,15 +7,16 @@ use bevy_rapier2d::prelude::*;
 mod controller;
 
 #[derive(Component)]
-struct Platform;
+struct Cart;
 
 #[derive(Component)]
 struct Pendulum;
 
-// Simulation parameters
-const MAX_PLATFORM_VEL: f32 = 1000.0; // Maximum absolute platform velocity
-const BALL_DENSITY: f32 = 1.0; // Pendulum ball density
-const AIR_RESISTANCE: f32 = 20.0; // Pendulum ball air resistance
+// Simulation Parameters
+const PENDULUM_MASS: f32 = 5.0;
+const CART_DAMPING: f32 = 0.5;
+const CART_MASS: f32 = 10.0;
+const GRAVITY_SCALE: f32 = 1.0;
 
 fn main() {
     App::new()
@@ -29,7 +30,6 @@ fn main() {
 }
 
 fn setup_graphics(mut commands: Commands) {
-    // Add a camera so we can see the debug-render.
     commands.spawn(Camera2dBundle::default());
 }
 
@@ -38,17 +38,70 @@ fn setup_physics(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // Platform
-    let platform = commands
-        .spawn(Platform)
-        .insert(RigidBody::KinematicVelocityBased)
+    // Ground
+    commands
+        .spawn(Collider::cuboid(500.0, 10.0))
         .insert(MaterialMesh2dBundle {
-            mesh: Mesh2dHandle(meshes.add(Rectangle::new(50.0, 25.0))),
-            material: materials.add(Color::rgb(1.0, 0.0, 0.0)),
+            mesh: Mesh2dHandle(meshes.add(Rectangle::new(1000.0, 20.0))),
+            material: materials.add(Color::rgb(1.0, 1.0, 0.0)),
             ..default()
         })
-        .insert(TransformBundle::from(Transform::from_xyz(0.0, -100.0, 0.0)))
-        .insert(Velocity::zero())
+        .insert(TransformBundle::from(Transform::from_xyz(0.0, -150.0, 0.0)))
+        .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2));
+
+    // Cart
+    let cart = commands
+        .spawn(Cart)
+        .insert(RigidBody::Dynamic)
+        .insert(GravityScale(GRAVITY_SCALE))
+        // Meshes
+        .with_children(|children| {
+            // Cart body
+            children
+                .spawn(MaterialMesh2dBundle {
+                    mesh: Mesh2dHandle(meshes.add(Rectangle::new(50.0, 25.0))),
+                    material: materials.add(Color::rgb(1.0, 0.0, 0.0)),
+                    ..default()
+                })
+                .insert(TransformBundle::from(Transform::from_xyz(0.0, 0.0, 0.0)));
+
+            // Wheels
+            children
+                .spawn(MaterialMesh2dBundle {
+                    mesh: Mesh2dHandle(meshes.add(Circle::new(5.0))),
+                    material: materials.add(Color::rgb(1.0, 0.0, 1.0)),
+                    ..default()
+                })
+                .insert(TransformBundle::from(Transform::from_xyz(
+                    -20.0, -19.0, 0.0,
+                )));
+            children
+                .spawn(MaterialMesh2dBundle {
+                    mesh: Mesh2dHandle(meshes.add(Circle::new(5.0))),
+                    material: materials.add(Color::rgb(1.0, 0.0, 1.0)),
+                    ..default()
+                })
+                .insert(TransformBundle::from(Transform::from_xyz(20.0, -19.0, 0.0)));
+        })
+        .with_children(|children| {
+            children
+                .spawn(Collider::cuboid(25.0, 19.0))
+                .insert(TransformBundle::from(Transform::from_xyz(0.0, -5.0, 0.0)))
+                .insert(ColliderMassProperties::Mass(CART_MASS))
+                .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2));
+        })
+        .insert(TransformBundle::from(Transform::from_xyz(
+            -4.0, -100.0, 0.0,
+        )))
+        .insert(ExternalForce {
+            force: Vec2::ZERO,
+            torque: 0.0,
+        })
+        // Cart friction
+        .insert(Damping {
+            linear_damping: CART_DAMPING,
+            angular_damping: 0.0,
+        })
         .id();
 
     // Pendulum Arm
@@ -59,6 +112,7 @@ fn setup_physics(
     commands
         .spawn(Pendulum)
         .insert(RigidBody::Dynamic)
+        .insert(GravityScale(GRAVITY_SCALE))
         // Meshes
         .with_children(|children| {
             children
@@ -80,31 +134,24 @@ fn setup_physics(
         // Colliders
         .with_children(|children| {
             children
-                .spawn(Collider::cuboid(50.0, 5.0))
-                .insert(TransformBundle::from(Transform::from_xyz(0.0, 0.0, 0.0)))
-                .insert(ColliderMassProperties::Density(0.0)); // The arm is massless
-            children
                 .spawn(Collider::ball(20.0))
                 .insert(TransformBundle::from(Transform::from_xyz(-50.0, 0.0, 0.0)))
-                .insert(ColliderMassProperties::Density(BALL_DENSITY));
-        })
-        // Air resistance
-        .insert(Damping {
-            linear_damping: 0.0,
-            angular_damping: AIR_RESISTANCE,
+                .insert(CollisionGroups::new(Group::GROUP_3, Group::GROUP_3))
+                .insert(ColliderMassProperties::Mass(PENDULUM_MASS));
         })
         .insert(TransformBundle::from(Transform::from_xyz(
             -10.0, -12.5, 0.0,
         )))
-        .insert(ImpulseJoint::new(platform, joint));
+        .insert(ImpulseJoint::new(cart, joint));
 }
 
 fn step(
-    mut platform_vel: Query<&mut Velocity, With<Platform>>,
+    mut cart_force: Query<&mut ExternalForce, With<Cart>>,
     mut body_sleep: Query<&mut Sleeping, With<RigidBody>>,
     pendulum_pos: Query<&Transform, With<Pendulum>>,
+    cart_pos: Query<&Transform, With<Cart>>,
 ) {
-    // Ensure nothing sleeps
+    // Ensure no body sleeps
     body_sleep.iter_mut().for_each(|mut body| {
         body.sleeping = false;
     });
@@ -112,17 +159,18 @@ fn step(
     // Get pendulum state
     let position = pendulum_pos.get_single().unwrap();
 
-    // Add offset to angle to make pendulum down 0 deg
-    // TODO Figure out why there is an error in the angle
-    let theta = f32::to_degrees(position.rotation.z) - 45.0 + 4.538864;
-    println!("Pendulum angle: {}", theta);
+    // Add offset to angle to make pendulum up 0 deg
+    // TODO: Figure out why there is an error in the angle
+    let theta = f32::to_degrees(position.rotation.z) + 139.429924;
 
-    // Control
-    let mut velocity = platform_vel.get_single_mut().unwrap();
-    velocity.linvel.x = controller::get_vel(theta);
+    // Get cart state
+    let position = cart_pos.get_single().unwrap();
+    let x_pos = position.translation.x;
 
-    // Fixed max platform velocity
-    if velocity.linvel.x.abs() > MAX_PLATFORM_VEL {
-        velocity.linvel.x = MAX_PLATFORM_VEL * velocity.linvel.x.signum();
-    }
+    println!("State -> theta: {} deg, x: {} m", &theta, &x_pos);
+
+    // Get cart actuator
+    let mut actuator = cart_force.get_single_mut().unwrap();
+
+    actuator.force = Vec2::new(10000.0, 0.0);
 }
