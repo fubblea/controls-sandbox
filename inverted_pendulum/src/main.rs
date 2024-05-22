@@ -4,6 +4,8 @@ use bevy::{
 };
 use bevy_rapier2d::prelude::*;
 
+use crate::controller::Controller;
+
 mod controller;
 
 #[derive(Component)]
@@ -15,7 +17,7 @@ struct Pendulum;
 // Simulation Parameters
 const PENDULUM_MASS: f32 = 5.0;
 const CART_DAMPING: f32 = 0.5;
-const CART_MASS: f32 = 10.0;
+const CART_MASS: f32 = 20.0;
 const GRAVITY_SCALE: f32 = 1.0;
 
 fn main() {
@@ -86,7 +88,7 @@ fn setup_physics(
         .with_children(|children| {
             children
                 .spawn(Collider::cuboid(25.0, 19.0))
-                .insert(TransformBundle::from(Transform::from_xyz(0.0, -5.0, 0.0)))
+                .insert(TransformBundle::from(Transform::from_xyz(0.0, -10.0, 0.0)))
                 .insert(ColliderMassProperties::Mass(CART_MASS))
                 .insert(CollisionGroups::new(Group::GROUP_2, Group::GROUP_2));
         })
@@ -172,5 +174,6 @@ fn step(
     // Get cart actuator
     let mut actuator = cart_force.get_single_mut().unwrap();
 
-    actuator.force = Vec2::new(10000.0, 0.0);
+    let controller = controller::DumbController::from_target(0.0, 0.0, 100.0);
+    actuator.force = Vec2::new(controller.get_force(x_pos, theta), 0.0)
 }
