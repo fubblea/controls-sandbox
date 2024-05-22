@@ -16,14 +16,19 @@ struct Pendulum;
 
 // Simulation Parameters
 const PENDULUM_MASS: f32 = 5.0;
+const PENDULUM_LENGTH: f32 = 0.5;
 const CART_DAMPING: f32 = 0.5;
 const CART_MASS: f32 = 20.0;
+
 const GRAVITY_SCALE: f32 = 1.0;
+const PIXELS_PER_METER: f32 = 100.0;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(
+            PIXELS_PER_METER,
+        ))
         // .add_plugins(RapierDebugRenderPlugin::default())
         .add_systems(Startup, setup_graphics)
         .add_systems(Startup, setup_physics)
@@ -119,7 +124,11 @@ fn setup_physics(
         .with_children(|children| {
             children
                 .spawn(MaterialMesh2dBundle {
-                    mesh: Mesh2dHandle(meshes.add(Rectangle::new(100.0, 10.0))),
+                    mesh: Mesh2dHandle(meshes.add(Rectangle::new(
+                        // Multiplied by two to convert from Mesh to Collider distances
+                        PENDULUM_LENGTH * PIXELS_PER_METER * 2.0,
+                        10.0,
+                    ))),
                     material: materials.add(Color::rgb(0.0, 0.0, 1.0)),
                     ..default()
                 })
