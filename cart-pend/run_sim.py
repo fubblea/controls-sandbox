@@ -16,6 +16,7 @@ while True:
 
     # Reset the environment if termination or truncation occured
     if terminated or truncated:
+        print("RESET")
         observation, info = env.reset()
     else:
         # Get the action from the controller for the next step
